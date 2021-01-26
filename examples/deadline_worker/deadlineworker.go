@@ -1,3 +1,5 @@
+// +build ignore
+
 package main
 
 import (
@@ -11,28 +13,28 @@ func main() {
 	ctx := context.Background()
 	t := time.Now()
 
-	deadlineWorker := worker.NewWorker(ctx, workerFunction, 4).SetDeadline(t.Add(2 * time.Second)).Work()
+	deadlineWorker := worker.NewWorker(ctx, NewDeadlineWorker(), 100).
+		SetDeadline(t.Add(200 * time.Millisecond)).Work()
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000000; i++ {
 		deadlineWorker.Send("hello")
 	}
 
-	err := deadlineWorker.Wait()
+	err := deadlineWorker.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
+	fmt.Println("finished")
 }
 
-func workerFunction(w *worker.Worker) error {
-	for {
-		select {
-		case in := <-w.In():
-			fmt.Println(in)
-			time.Sleep(1 * time.Second)
-		case <-w.IsDone():
-			// due to the nature of errgroups in order to stop the worker from
-			// waiting an error needs to be returned
-			return fmt.Errorf("deadline reached")
-		}
-	}
+type DeadlineWorker struct{}
+
+func NewDeadlineWorker() *DeadlineWorker {
+	return &DeadlineWorker{}
+}
+
+func (dlw *DeadlineWorker) Work(w *worker.Worker, in interface{}) error {
+	w.Println(in)
+	time.Sleep(1 * time.Second)
+	return nil
 }

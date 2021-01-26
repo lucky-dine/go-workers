@@ -1,45 +1,54 @@
+// +build ignore
+
 package main
 
 import (
 	"context"
 	"fmt"
-	goworker "github.com/catmullet/go-workers"
+	worker "github.com/catmullet/go-workers"
 	"math/rand"
 )
 
 func main() {
 	ctx := context.Background()
-	workerOne := goworker.NewWorker(ctx, workerFunctionOne, 10).Work()
-	workerTwo := goworker.NewWorker(ctx, workerFunctionTwo, 10).InFrom(workerOne).Work()
+	workerOne := worker.NewWorker(ctx, NewWorkerOne(), 1000).Work()
+	workerTwo := worker.NewWorker(ctx, NewWorkerTwo(), 1000).InFrom(workerOne).Work()
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000000; i++ {
 		workerOne.Send(rand.Intn(100))
 	}
 
-	workerOne.Close()
-	if err := workerOne.Wait(); err != nil {
+	if err := workerOne.Close(); err != nil {
 		fmt.Println(err)
 	}
 
-	workerTwo.Close()
-	if err := workerTwo.Wait(); err != nil {
+	if err := workerTwo.Close(); err != nil {
 		fmt.Println(err)
 	}
+
+	fmt.Println("finished")
 }
 
-func workerFunctionOne(w *goworker.Worker) error {
-	for in := range w.In() {
-		total := in.(int) * 2
-		fmt.Println(fmt.Sprintf("%d * 2 = %d", in.(int), total))
-		w.Out(total)
-	}
+type WorkerOne struct{}
+type WorkerTwo struct{}
+
+func NewWorkerOne() *WorkerOne {
+	return &WorkerOne{}
+}
+
+func NewWorkerTwo() *WorkerTwo {
+	return &WorkerTwo{}
+}
+
+func (wo *WorkerOne) Work(w *worker.Worker, in interface{}) error {
+	total := in.(int) * 2
+	w.Println(fmt.Sprintf("%d * 2 = %d", in.(int), total))
+	w.Out(total)
 	return nil
 }
 
-func workerFunctionTwo(w *goworker.Worker) error {
-	for in := range w.In() {
-		totalFromWorkerOne := in.(int)
-		fmt.Println(fmt.Sprintf("%d * 4 = %d", totalFromWorkerOne, totalFromWorkerOne*4))
-	}
+func (wt *WorkerTwo) Work(w *worker.Worker, in interface{}) error {
+	totalFromWorkerOne := in.(int)
+	w.Println(fmt.Sprintf("%d * 4 = %d", totalFromWorkerOne, totalFromWorkerOne*4))
 	return nil
 }
